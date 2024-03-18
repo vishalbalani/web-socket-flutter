@@ -1,78 +1,104 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 
 void main() {
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Socket.IO Demo',
+    return const MaterialApp(
+      title: 'Socket.IO Flutter',
       home: SocketIOClientDemo(),
     );
   }
 }
 
 class SocketIOClientDemo extends StatefulWidget {
+  const SocketIOClientDemo({super.key});
+
   @override
   _SocketIOClientDemoState createState() => _SocketIOClientDemoState();
 }
 
 class _SocketIOClientDemoState extends State<SocketIOClientDemo> {
   late IO.Socket socket;
+  final TextEditingController _controller = TextEditingController();
+  late StreamController<String> _messageStreamController;
 
   @override
   void initState() {
     super.initState();
 
-    // Replace 'http://localhost:port' with your backend server URL
-    socket = IO.io('http://10.12.34.239:3000', <String, dynamic>{
+    // Initialize the Socket.IO client
+    socket = IO.io('http://localhost:3000', <String, dynamic>{
       'transports': ['websocket'],
       'autoConnect': false,
-      "auth": {
-        "token":
-            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY1ZWMzYjQxZTA5MDkxOTUzNjczM2Q0OSIsImlhdCI6MTcxMDU5NzM4NywiZXhwIjoxNzEzMTg5Mzg3fQ.dWS0EugMbneY_I0n-ueJFQsbRvj-PD_lVUD4dSVxsnw",
-        "Custom-Header": "CustomValue"
-      }
+      'auth': {'token': '', 'Custom-Header': 'CustomValue'}
     });
 
+    // Connect to the server
     socket.connect();
 
-    socket.onConnect((_) {
-      print('Connected');
-    });
+    // Initialize the stream controller
+    _messageStreamController = StreamController<String>();
 
-    socket.onDisconnect((_) {
-      print('Disconnected');
-    });
-
+    // Listen for 'message' events from the server
     socket.on('message', (data) {
-      print('Received message: $data');
+      // Add the received message to the stream
+      _messageStreamController.add(data.toString());
     });
   }
 
   @override
   void dispose() {
+    // Dispose of the socket and stream controller
     socket.dispose();
+    _messageStreamController.close();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Socket.IO Demo'),
-      ),
-      body: Center(
-        child: ElevatedButton(
-          onPressed: () {
-            // Emit a message to the server
-            socket.emit('message', 'Hello from Flutter!');
-          },
-          child: Text('Send Message'),
+      appBar: AppBar(title: const Text('SocketIO Flutter')),
+      body: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Form(
+              child: TextFormField(
+                decoration: const InputDecoration(
+                  labelText: "Send any message to the server",
+                ),
+                controller: _controller,
+              ),
+            ),
+            StreamBuilder<String>(
+              stream: _messageStreamController.stream,
+              builder: (context, snapshot) {
+                return Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Text(snapshot.hasData ? snapshot.data! : ''),
+                );
+              },
+            )
+          ],
         ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        child: const Icon(Icons.send),
+        onPressed: () {
+          // Emit a 'message' event with the content of the text input field
+          socket.emit('message', _controller.text);
+          _controller.clear();
+        },
       ),
     );
   }
